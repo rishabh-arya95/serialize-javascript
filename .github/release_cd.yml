@@ -1,0 +1,66 @@
+name: Release
+
+on:
+    pull_request:
+      types:
+        - closed
+      branches:
+        - prod
+        
+permissions: write-all
+
+jobs:
+  Release:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    permissions:
+        contents: write
+        checks: write
+        packages: write
+        pull-requests: write
+    steps:
+      - name: Check minor label
+        id: check_pr_labels_minor
+        uses: shioyang/check-pr-labels-on-push-action@v1.0.9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          labels: '["release:minor"]'
+
+      - name: Check major label
+        id: check_pr_labels_major
+        uses: shioyang/check-pr-labels-on-push-action@v1.0.9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          labels: '["release:major"]'
+
+      - name: Release Type
+        run: |
+          if [ ${MINOR} == "true" ] ; then
+            echo "RELEASE_TYPE=minor" >> $GITHUB_ENV
+          elif [ ${MAJOR} == "true" ] ; then
+            echo "RELEASE_TYPE=major" >> $GITHUB_ENV
+          else
+          echo "RELEASE_TYPE=patch" >> $GITHUB_ENV
+          fi
+        env:
+          MINOR: ${{ steps.check_pr_labels_minor.outputs.result }}
+          MAJOR: ${{ steps.check_pr_labels_major.outputs.result }}
+
+      - name: Checkout Code
+        uses: actions/checkout@v4      
+        with:
+            ref: ${{ github.event.pull_request.merge_commit_sha }}
+            fetch-depth: '0'
+      - name: Bump version and push tag
+        uses: anothrNick/github-tag-action@1.64.0
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+            WITH_V: true
+            DEFAULT_BUMP: ${{ env.RELEASE_TYPE }}
+
+      - name: Release
+        uses: ncipollo/release-action@v1
+        with:
+              generateReleaseNotes: true
+    
+   
